@@ -8,23 +8,37 @@ plugins:
   - serverless-reqvalidator-plugin
   - serverless-aws-documentation
 
+package:
+  individually: true
+
 provider:
   name: aws
   runtime: nodejs12.x
+
+  # Enable gzip compression
+  apiGateway:
+    minimumCompressionSize: 1024
+
+  # Staging
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'us-east-1'}
+
+  #  ENV Declaration(s)
+  environment:
+    PROJECT_NAME: gigabyte-serverless
+    TODOS_TABLE: gigabyte-serverless-todos-${self:provider.stage}
+    S3_BUCKET_NAME: gigabyte-serverless-todos-app-${self:provider.stage}
+    SIGNED_URL_EXPIRATION: 1000
 
   #  X-Ray Tracing
   tracing:
     lambda: true
     apiGateway: true
 
-  environment:
-    PROJECT_NAME: gigabyte-serverless
-    TODOS_TABLE: gigabyte-serverless-todos-${self:provider.stage}
-    S3_BUCKET_NAME: gigabyte-serverless-todos-app-${self:provider.stage}
-
 custom:
+  webpack:
+    webpackConfig: ./webpack.config.js
+    includeModules: true
   documentation:
     api:
       info:
@@ -62,11 +76,9 @@ custom:
 
 
 functions:
-
   Auth:
     handler: src/lambda/auth/auth0Authorizer.handler
 
-  # TODO: Configure this function
   GetTodos:
     handler: src/lambda/http/getTodos.handler
     events:
@@ -87,8 +99,6 @@ functions:
         Resource:
           - '*'
 
-  # TODO: Configure this function
-
   CreateTodo:
     handler: src/lambda/http/createTodo.handler
     events:
@@ -98,7 +108,7 @@ functions:
           cors: true
           authorizer: Auth
           documentation:
-            summary: "Create a new todo item"
+            summary: "Create new todo item"
             description: "Create a new todo item"
             requestModels:
               "application/json": CreateTodoRequest
@@ -115,7 +125,6 @@ functions:
         Resource:
           - '*'
 
-  # TODO: Configure this function
   UpdateTodo:
     handler: src/lambda/http/updateTodo.handler
     events:
@@ -142,7 +151,6 @@ functions:
         Resource:
           - '*'
 
-  # DELETE: Configure this function
   DeleteTodo:
     handler: src/lambda/http/deleteTodo.handler
     events:
@@ -182,7 +190,6 @@ functions:
 
 resources:
   Resources:
-    # TODO: Add any necessary AWS resources
     TodosTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -222,7 +229,7 @@ resources:
                 - POST
                 - DELETE
                 - HEAD
-              MaxAge: 300
+              MaxAge: 3000
 
     RequestBodyValidator:
       Type: AWS::ApiGateway::RequestValidator
@@ -233,7 +240,7 @@ resources:
         ValidateRequestBody: true
         ValidateRequestParameters: false
 
-    GatewayResponseDefault4XX:
+    GatewayResponseDefault4XX:                               # Required to satisfy CORS if Authorization is not granted
       Type: AWS::ApiGateway::GatewayResponse
       Properties:
         ResponseParameters:
